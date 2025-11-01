@@ -1,6 +1,6 @@
 {
   "name": "queue-application",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "An Electron application with React",
   "main": "./src/main/index.js",
   "author": "example.com",
