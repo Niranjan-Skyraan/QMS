@@ -4,18 +4,11 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 // import axios from '../renderer/src/config/AxiosConfig'
 import { get } from 'http';
 import { notDeepEqual } from 'assert';
-import { autoUpdater } from 'electron-updater';
+import {autoUpdater} from 'electron-updater';
 import { cwd } from 'process';
-import updateElectronApp from 'update-electron-app';
 
 
 let remindInterval = null; // for repeating reminders
-
-// --- LOGGING SETUP ---
-log.transports.file.level = 'info';
-autoUpdater.logger = log;
-log.info('App starting...');
-
 
 
 
@@ -120,102 +113,200 @@ function createWindow() {
 }
 
 
-// --- AUTO UPDATE SETUP ---
-updateElectronApp({
-  repo: 'Niranjan-Skyraan/QMS', // your GitHub repo
-  updateInterval: '1 hour',
-  logger: log,
-});
 
-const showNotification = (title, body, actions = []) => {
-  const notification = new Notification({
-    title,
-    body,
-    actions,
-    silent: false,
-    closeButtonText: 'Close',
-  });
+// const showNotification = (title, body, actions = []) => {
+//   const notification = new Notification({
+//     title,
+//     body,
+//     actions,
+//     silent: false,
+//     closeButtonText: 'Close',
+//   });
 
-  notification.show();
-  return notification;
-};
+//   notification.show();
+//   return notification;
+// };
 
 // --- PROMPT USER TO INSTALL ---
 
-const promptInstallNowOrLater = () => {
-  const notification = showNotification('Update Ready', 'A new version has been downloaded.', [
-    { type: 'button', text: 'Install Now' },
-    { type: 'button', text: 'Later' },
-  ]);
+// const promptInstallNowOrLater = () => {
+//   const notification = showNotification('Update Ready', 'A new version has been downloaded.', [
+//     { type: 'button', text: 'Install Now' },
+//     { type: 'button', text: 'Later' },
+//   ]);
 
-  notification.once('action', (_event, index) => {
-    if (index === 0) {
-      log.info('User chose to install now.');
-      clearInterval(remindInterval);
-      autoUpdater.quitAndInstall();
+//   notification.once('action', (_event, index) => {
+//     if (index === 0) {
+//       log.info('User chose to install now.');
+//       clearInterval(remindInterval);
+//       autoUpdater.quitAndInstall();
+//     } else {
+//       log.info('User postponed update.');
+//       remindUserLater();
+//     }
+//   });
+
+//   notification.once('close', () => {
+//     log.info('Notification closed by user.');
+//   });
+// };
+
+// // --- REMIND USER EVERY 2 MINUTES ---
+// const remindUserLater = () => {
+//   if (remindInterval) clearInterval(remindInterval);
+//   remindInterval = setInterval(() => {
+//     const n = showNotification('Reminder', 'An update is ready to install. Restart now?', [
+//       { type: 'button', text: 'Install Now' },
+//       { type: 'button', text: 'Later' },
+//     ]);
+
+//     n.once('action', (_event, index) => {
+//       if (index === 0) {
+//         clearInterval(remindInterval);
+//         autoUpdater.quitAndInstall();
+//       }
+//     });
+//   }, 2 * 60 * 1000); // every 2 minutes
+// };
+
+// // --- AUTO UPDATER EVENTS ---
+// autoUpdater.on('checking-for-update', () => {
+//   log.info('Checking for updates...');
+// });
+
+// autoUpdater.on('update-available', (info) => {
+//   log.info(`Update available: v${info.version}`);
+//   showNotification('Update Available', `Version ${info.version} is downloading...`);
+// });
+
+// autoUpdater.on('update-not-available', () => {
+//   log.info('No updates available.');
+//   showNotification('Up to Date', 'You are running the latest version.');
+// });
+
+
+// autoUpdater.on('error', (err) => {
+//   log.error('Update error:', err);
+//   showNotification('Update Error', err.message || 'Something went wrong while updating.');
+// });
+
+
+// autoUpdater.on('download-progress', (progressObj) => {
+//   const percent = progressObj.percent.toFixed(1);
+//   log.info(`Download progress: ${percent}%`);
+// });
+
+
+// autoUpdater.on('update-downloaded', (info) => {
+//   log.info(`Update downloaded: v${info.version}`);
+//   promptInstallNowOrLater();
+// });
+
+
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return // Only run in production builds
+ 
+  autoUpdater.autoDownload = true
+ 
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...')
+  })
+ 
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version)
+ 
+    // Show desktop notification
+    const notif = new Notification({
+      title: 'Update Available 🚀',
+      body: `Version ${info.version} is downloading in the background...`,
+      silent: false
+    })
+    notif.show()
+ 
+    mainWindow.webContents.send('check-update', info.version)
+  })
+ 
+  autoUpdater.on('update-not-available', () => {
+    console.log('No update available')
+  })
+ 
+  autoUpdater.on('error', (err) => {
+    console.error('Update error:', err)
+    new Notification({
+      title: 'Update Error ❌',
+      body: err.message || 'Failed to check for updates.'
+    }).show()
+  })
+ 
+  autoUpdater.on('download-progress', (progress) => {
+    const percent = Math.round(progress.percent)
+    console.log(`Downloading update... ${percent}%`)
+    mainWindow.setProgressBar(progress.percent / 100)
+  })
+ 
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`Update downloaded: ${info.version}`)
+ 
+    // Use a styled dialog for install confirmation
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      buttons: ['Install Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Update Ready 🎉',
+      message: `Version ${info.version} has been downloaded.`,
+      detail: 'Would you like to install the update now? Your app will restart.'
+    })
+ 
+    if (choice === 0) {
+      console.log('User chose to install update now')
+      autoUpdater.quitAndInstall()
     } else {
-      log.info('User postponed update.');
-      remindUserLater();
+      console.log('User chose to install later')
+      new Notification({
+        title: 'Update Deferred ⏰',
+        body: 'You can install the update later from Settings or next restart.'
+      }).show()
+ 
+      // Optional: remind again in 30 mins
+      setTimeout(
+        () => {
+          const reminder = new Notification({
+            title: 'Reminder 🔔',
+            body: 'An update is ready to install. Click to update now!'
+          })
+ 
+          reminder.show()
+ 
+          reminder.on('click', () => {
+            console.log('User clicked the update reminder notification')
+ 
+            // Option 1: install immediately
+            // autoUpdater.quitAndInstall()
+ 
+            // Option 2: show a confirmation first (safer)
+            const choice = dialog.showMessageBoxSync(mainWindow, {
+              type: 'question',
+              buttons: ['Install Now', 'Cancel'],
+              defaultId: 0,
+              cancelId: 1,
+              title: 'Install Update',
+              message: 'Would you like to install the downloaded update now?'
+            })
+            if (choice === 0) {
+              autoUpdater.quitAndInstall()
+            }
+          })
+        },
+        30 * 60 * 1000
+      )
     }
-  });
-
-  notification.once('close', () => {
-    log.info('Notification closed by user.');
-  });
-};
-
-// --- REMIND USER EVERY 2 MINUTES ---
-const remindUserLater = () => {
-  if (remindInterval) clearInterval(remindInterval);
-  remindInterval = setInterval(() => {
-    const n = showNotification('Reminder', 'An update is ready to install. Restart now?', [
-      { type: 'button', text: 'Install Now' },
-      { type: 'button', text: 'Later' },
-    ]);
-
-    n.once('action', (_event, index) => {
-      if (index === 0) {
-        clearInterval(remindInterval);
-        autoUpdater.quitAndInstall();
-      }
-    });
-  }, 2 * 60 * 1000); // every 2 minutes
-};
-
-// --- AUTO UPDATER EVENTS ---
-autoUpdater.on('checking-for-update', () => {
-  log.info('Checking for updates...');
-});
-
-autoUpdater.on('update-available', (info) => {
-  log.info(`Update available: v${info.version}`);
-  showNotification('Update Available', `Version ${info.version} is downloading...`);
-});
-
-autoUpdater.on('update-not-available', () => {
-  log.info('No updates available.');
-  showNotification('Up to Date', 'You are running the latest version.');
-});
-
-
-autoUpdater.on('error', (err) => {
-  log.error('Update error:', err);
-  showNotification('Update Error', err.message || 'Something went wrong while updating.');
-});
-
-
-autoUpdater.on('download-progress', (progressObj) => {
-  const percent = progressObj.percent.toFixed(1);
-  log.info(`Download progress: ${percent}%`);
-});
-
-
-autoUpdater.on('update-downloaded', (info) => {
-  log.info(`Update downloaded: v${info.version}`);
-  promptInstallNowOrLater();
-});
-
-
+  })
+ 
+  // Start the update check
+  autoUpdater.checkForUpdatesAndNotify()
+}
 
 
 app.whenReady().then(() => {
@@ -282,10 +373,10 @@ app.whenReady().then(() => {
   createWindow()
 
   // Check for updates after 5 seconds
-  setTimeout(() => {
-    autoUpdater.checkForUpdatesAndNotify();
-  }, 5000);
-  
+  // setTimeout(() => {
+  //   autoUpdater.checkForUpdatesAndNotify();
+  // }, 5000);
+  setupAutoUpdater()
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

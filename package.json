@@ -1,8 +1,8 @@
 {
   "name": "queue-application",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "An Electron application with React",
-  "main": "./src/main/index.js",
+  "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",
   "scripts": {
@@ -10,13 +10,15 @@
     "lint": "eslint --cache .",
     "start": "electron-forge start",
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-builder build --mac --win --publish never",
+    "deploy": "electron-builder build --mac --win --publish always",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
     "package": "electron-forge package",
+    "dist": "npm run build && electron-builder",
     "make": "electron-forge make",
     "publish": "electron-forge publish"
   },
@@ -29,7 +31,6 @@
     "dayjs": "^1.11.18",
     "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.1",
-    "electron-updater": "^6.6.2",
     "react-router-dom": "^7.9.4",
     "update-electron-app": "^3.1.1"
   },
@@ -49,6 +50,8 @@
     "autoprefixer": "^10.4.21",
     "dotenv": "^17.2.3",
     "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
+    "electron-updater": "^6.6.2",
     "electron-vite": "^4.0.1",
     "eslint": "^9.36.0",
     "eslint-plugin-react": "^7.37.5",
@@ -67,8 +70,10 @@
     "files": [
       "out/**"
     ],
-    "directories": {
-      "buildResources": "resources"
+    "publish": {
+      "provider": "github",
+      "owner": "Niranjan-Skyraan",
+      "repo": "QMS"
     },
     "win": {
       "target": "nsis",
