@@ -4,7 +4,18 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 // import axios from '../renderer/src/config/AxiosConfig'
 import { get } from 'http';
 import { notDeepEqual } from 'assert';
+import { autoUpdater } from 'electron-updater';
 import { cwd } from 'process';
+import updateElectronApp from 'update-electron-app';
+
+
+let remindInterval = null; // for repeating reminders
+
+// --- LOGGING SETUP ---
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
+log.info('App starting...');
+
 
 
 
@@ -109,6 +120,104 @@ function createWindow() {
 }
 
 
+// --- AUTO UPDATE SETUP ---
+updateElectronApp({
+  repo: 'Niranjan-Skyraan/QMS', // your GitHub repo
+  updateInterval: '1 hour',
+  logger: log,
+});
+
+const showNotification = (title, body, actions = []) => {
+  const notification = new Notification({
+    title,
+    body,
+    actions,
+    silent: false,
+    closeButtonText: 'Close',
+  });
+
+  notification.show();
+  return notification;
+};
+
+// --- PROMPT USER TO INSTALL ---
+
+const promptInstallNowOrLater = () => {
+  const notification = showNotification('Update Ready', 'A new version has been downloaded.', [
+    { type: 'button', text: 'Install Now' },
+    { type: 'button', text: 'Later' },
+  ]);
+
+  notification.once('action', (_event, index) => {
+    if (index === 0) {
+      log.info('User chose to install now.');
+      clearInterval(remindInterval);
+      autoUpdater.quitAndInstall();
+    } else {
+      log.info('User postponed update.');
+      remindUserLater();
+    }
+  });
+
+  notification.once('close', () => {
+    log.info('Notification closed by user.');
+  });
+};
+
+// --- REMIND USER EVERY 2 MINUTES ---
+const remindUserLater = () => {
+  if (remindInterval) clearInterval(remindInterval);
+  remindInterval = setInterval(() => {
+    const n = showNotification('Reminder', 'An update is ready to install. Restart now?', [
+      { type: 'button', text: 'Install Now' },
+      { type: 'button', text: 'Later' },
+    ]);
+
+    n.once('action', (_event, index) => {
+      if (index === 0) {
+        clearInterval(remindInterval);
+        autoUpdater.quitAndInstall();
+      }
+    });
+  }, 2 * 60 * 1000); // every 2 minutes
+};
+
+// --- AUTO UPDATER EVENTS ---
+autoUpdater.on('checking-for-update', () => {
+  log.info('Checking for updates...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  log.info(`Update available: v${info.version}`);
+  showNotification('Update Available', `Version ${info.version} is downloading...`);
+});
+
+autoUpdater.on('update-not-available', () => {
+  log.info('No updates available.');
+  showNotification('Up to Date', 'You are running the latest version.');
+});
+
+
+autoUpdater.on('error', (err) => {
+  log.error('Update error:', err);
+  showNotification('Update Error', err.message || 'Something went wrong while updating.');
+});
+
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const percent = progressObj.percent.toFixed(1);
+  log.info(`Download progress: ${percent}%`);
+});
+
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info(`Update downloaded: v${info.version}`);
+  promptInstallNowOrLater();
+});
+
+
+
+
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
@@ -172,6 +281,11 @@ app.whenReady().then(() => {
 
   createWindow()
 
+  // Check for updates after 5 seconds
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify();
+  }, 5000);
+  
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
